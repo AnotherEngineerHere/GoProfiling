@@ -1,4 +1,3 @@
-```markdown
 # Arquitectura del Sistema de Búsqueda de Correos
 **Documento de Arquitectura**
 
@@ -73,4 +72,3 @@
 - Validación de entrada
 - Limitación de consultas
 - Anonimización de datos sensibles
-```
