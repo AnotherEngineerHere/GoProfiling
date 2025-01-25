@@ -4,12 +4,13 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"project/internal/handlers"
-	"project/internal/repository"
-	"project/internal/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"project/internal/handlers"
+	"project/internal/repository"
+	"project/internal/services"
 )
 
 func main() {
@@ -36,6 +37,7 @@ func main() {
 	// Definir rutas
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/search", searchHandler.Search)
+		r.Get("/emails", searchHandler.ListEmails) // Nuevo endpoint para listar correos
 	})
 
 	// Iniciar servidor
