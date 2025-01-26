@@ -3,6 +3,7 @@ package indexer
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -37,12 +38,24 @@ type indexJob struct {
 }
 
 func (e *EmailIndexer) IndexEmailsFromPath(path string) error {
+	log.Printf("Comenzando indexación desde: %s\n", path)
+
+	// Verificar existencia del directorio
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("error al acceder al directorio: %v", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("la ruta proporcionada no es un directorio")
+	}
+
 	// Canal de trabajos y resultados
 	jobs := make(chan indexJob, 100)
 	results := make(chan indexResult, 100)
 
 	// Número de workers basado en CPUs
 	numWorkers := runtime.NumCPU()
+	log.Printf("Usando %d workers para indexación\n", numWorkers)
 
 	// Contadores con mutex para concurrencia segura
 	var (
@@ -56,25 +69,34 @@ func (e *EmailIndexer) IndexEmailsFromPath(path string) error {
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func() {
+		go func(workerID int) {
 			defer wg.Done()
 			for job := range jobs {
+				log.Printf("Worker %d procesando: %s\n", workerID, job.filePath)
 				result := e.processEmail(job)
 				results <- result
 			}
-		}()
+		}(i)
 	}
 
 	// Recolector de archivos
 	go func() {
 		defer close(jobs)
 
-		filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+		log.Println("Comenzando búsqueda de archivos...")
+		fileCount := 0
+		err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Printf("Error accediendo a %s: %v\n", filePath, err)
 				return nil
 			}
 
-			// Filtrar archivos
+			// Ignorar directorios
+			if info.IsDir() {
+				return nil
+			}
+
+			// Verificar extensiones de archivos de correo
 			ext := strings.ToLower(filepath.Ext(filePath))
 			validExtensions := []string{".txt", "", ".eml"}
 			isValidExtension := false
@@ -87,16 +109,27 @@ func (e *EmailIndexer) IndexEmailsFromPath(path string) error {
 
 			if isValidExtension {
 				content, err := ioutil.ReadFile(filePath)
-				if err == nil && len(content) > 0 {
+				if err != nil {
+					log.Printf("Error leyendo archivo %s: %v\n", filePath, err)
+					return nil
+				}
+
+				if len(content) > 0 {
 					jobs <- indexJob{
 						filePath: filePath,
 						content:  string(content),
 					}
+					fileCount++
 				}
 			}
 
 			return nil
 		})
+
+		if err != nil {
+			log.Printf("Error durante búsqueda de archivos: %v\n", err)
+		}
+		log.Printf("Encontrados %d archivos para indexar\n", fileCount)
 	}()
 
 	// Recolector de resultados
@@ -110,6 +143,7 @@ func (e *EmailIndexer) IndexEmailsFromPath(path string) error {
 		mu.Lock()
 		if result.err != nil {
 			errorCount++
+			log.Printf("Error en indexación: %v\n", result.err)
 			if strings.Contains(result.err.Error(), "vacío") {
 				skippedCount++
 			}
@@ -124,7 +158,7 @@ func (e *EmailIndexer) IndexEmailsFromPath(path string) error {
 		mu.Unlock()
 	}
 
-	fmt.Printf("Indexación completada. Total de correos indexados: %d, Errores: %d, Archivos vacíos: %d\n",
+	log.Printf("Indexación completada. Total de correos indexados: %d, Errores: %d, Archivos vacíos: %d\n",
 		indexedCount, errorCount, skippedCount)
 
 	return nil
@@ -138,19 +172,22 @@ type indexResult struct {
 func (e *EmailIndexer) processEmail(job indexJob) indexResult {
 	// Verificar si el archivo está vacío
 	if len(job.content) == 0 {
-		return indexResult{err: fmt.Errorf("archivo vacío")}
+		log.Printf("Archivo vacío: %s\n", job.filePath)
+		return indexResult{err: fmt.Errorf("archivo vacío: %s", job.filePath)}
 	}
 
 	// Parsear email
 	email, err := e.parseEmail(job.filePath, job.content)
 	if err != nil {
-		return indexResult{err: err}
+		log.Printf("Error parseando email %s: %v\n", job.filePath, err)
+		return indexResult{err: fmt.Errorf("error parseando email %s: %v", job.filePath, err)}
 	}
 
 	// Indexar en ZincSearch
 	err = e.repo.Index("emails", email)
 	if err != nil {
-		return indexResult{err: err}
+		log.Printf("Error indexando %s: %v\n", job.filePath, err)
+		return indexResult{err: fmt.Errorf("error indexando %s: %v", job.filePath, err)}
 	}
 
 	return indexResult{email: email}
@@ -159,6 +196,7 @@ func (e *EmailIndexer) processEmail(job indexJob) indexResult {
 func (e *EmailIndexer) parseEmail(filePath string, contentStr string) (Email, error) {
 	// Verificar si el contenido está vacío o no es un correo válido
 	if !strings.Contains(contentStr, "From:") || !strings.Contains(contentStr, "To:") {
+		log.Printf("Contenido inválido en %s\n", filePath)
 		return Email{}, fmt.Errorf("contenido no parece ser un correo válido")
 	}
 
