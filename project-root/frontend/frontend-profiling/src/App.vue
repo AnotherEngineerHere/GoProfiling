@@ -1,82 +1,169 @@
 <template>
   <div class="app">
-    <div class="container">
-      <SearchTable 
-        :items="items"
-        @select-item="selectItem"
+    <NavigationBar />
+    
+    <main class="main-content">
+      <SearchBar 
+        v-model="searchQuery"
+        @update:modelValue="handleSearch"
       />
-      <DetailCard 
-        :selectedItem="selectedItem"
-      />
-    </div>
+
+      <div v-if="loading" class="loading">
+        <div class="loader"></div>
+      </div>
+
+      <div v-else-if="error" class="error">
+        {{ error }}
+      </div>
+
+      <div v-else class="email-container">
+        <EmailList 
+          :emails="emails"
+          @select="selectEmail"
+        />
+        <EmailDetail 
+          :email="selectedEmail"
+        />
+      </div>
+    </main>
   </div>
 </template>
 
 <script>
-import SearchTable from './components/SearchTable.vue'
-import DetailCard from './components/DetailCard.vue'
+import { ref } from 'vue'
+import NavigationBar from './components/NavigationBar.vue'
+import SearchBar from './components/SearchBar.vue'
+import EmailList from './components/EmailList.vue'
+import EmailDetail from './components/EmailDetail.vue'
+import emailService from './services/EmailService'
 
 export default {
   name: 'App',
   components: {
-    SearchTable,
-    DetailCard
+    NavigationBar,
+    SearchBar,
+    EmailList,
+    EmailDetail
   },
-  data() {
-    return {
-      items: [
-        // Aquí van tus datos
-        {id: 1, title: 'Item 1', content: 'Contenido 1', date: '2023-01-01'},
-        {id: 2, title: 'Item 2', content: 'Contenido 2', date: '2023-01-02'},
-      ],
-      selectedItem: null
+  setup() {
+    const emails = ref([])
+    const selectedEmail = ref(null)
+    const searchQuery = ref('')
+    const loading = ref(false)
+    const error = ref(null)
+
+    const loadEmails = async () => {
+      try {
+        loading.value = true
+        const response = await emailService.getAll()
+        emails.value = response
+      } catch (err) {
+        error.value = 'Error al cargar los emails'
+        console.error(err)
+      } finally {
+        loading.value = false
+      }
     }
-  },
-  methods: {
-    selectItem(item) {
-      this.selectedItem = item
+
+    const selectEmail = (email) => {
+      selectedEmail.value = email
+    }
+
+    const handleSearch = async () => {
+      try {
+        loading.value = true
+        if (searchQuery.value.trim()) {
+          const response = await emailService.search(searchQuery.value)
+          emails.value = response
+        } else {
+          await loadEmails()
+        }
+      } catch (err) {
+        error.value = 'Error en la búsqueda'
+        console.error(err)
+      } finally {
+        loading.value = false
+      }
+    }
+
+    // Cargar emails al iniciar
+    loadEmails()
+
+    return {
+      emails,
+      selectedEmail,
+      searchQuery,
+      loading,
+      error,
+      selectEmail,
+      handleSearch
     }
   }
 }
 </script>
 
 <style>
-.container {
-  display: flex;
-  gap: 20px;
-  padding: 20px;
+/* Estilos globales */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.search-table {
-  flex: 1;
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f7f8fa;
+  color: #2d3748;
 }
 
-.detail-card {
-  flex: 1;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.app {
+  min-height: 100vh;
 }
 
-.search-input {
-  width: 100%;
-  padding: 8px;
-  margin-bottom: 20px;
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+.email-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
 }
 
-th, td {
-  padding: 8px;
-  border: 1px solid #ddd;
-  text-align: left;
+.loading {
+  text-align: center;
+  padding: 2rem;
 }
 
-tr:hover {
-  background-color: #f5f5f5;
-  cursor: pointer;
+.loader {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 50%;
+  border-top-color: #00003e;
+  animation: spin 1s linear infinite;
+}
+
+.error {
+  background-color: #fff5f5;
+  border-left: 4px solid #f56565;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  color: #c53030;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .email-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

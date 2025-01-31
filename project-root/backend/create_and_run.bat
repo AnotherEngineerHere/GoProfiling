@@ -27,7 +27,7 @@ docker run -d --name zincsearch -p 4080:4080 ^
 timeout /t 5
 
 :: Ejecutar indexer con profiling
-indexer.exe "D:\Descargas\Programacion\TruoraSWE\enron_mail_20110403\maildir"
+indexer.exe "D:\Descargas\Programacion\TruoraSWE\enron_mail_20110402\maildir"
 
 :: Generar visualizaciones
 start "" cmd /c "go tool pprof -http=:8080 %CPU_PROFILE%"
