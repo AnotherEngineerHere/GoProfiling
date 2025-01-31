@@ -37,7 +37,7 @@ start "" cmd /c "go tool trace -http=:8083 %TRACE_PROFILE%"
 
 :: Generar SVGs
 go tool pprof -svg %CPU_PROFILE% > profiles/cpu.svg
-go tool pprof -svg %MEM_PROFILE% > profiles/mem.svg
+go tool pprof -svg %MEM_PROFILE% > profiles/mem.svgn
 go tool pprof -svg %BLOCK_PROFILE% > profiles/block.svg
 
 echo "Iniciando servidor"
