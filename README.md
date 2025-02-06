@@ -16,6 +16,8 @@ Sistema de búsqueda de correos electrónicos del dataset de Enron Corp utilizan
 - Node.js 16+
 - ZincSearch
 - Docker (opcional)
+- Base de datos
+http://www.cs.cmu.edu/~enron/enron_mail_20110402.tgz (423MB)
 
 ## 🖥️ Instalación
 
